@@ -1,0 +1,189 @@
+@page "/book"
+@implements IDisposable
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject HttpClient HttpClient
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>Books</PageTitle>
+
+<div class="mb-3">
+    <MudText Typo="Typo.h3">Books</MudText>
+</div>
+
+<MudStack AlignItems="AlignItems.End" Class="mb-3">
+    <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.AddCircleOutline" Color="Color.Primary" OnClick="@(e => OnAdd())">Add</MudButton>
+</MudStack>
+
+<MudDataGrid T="Book" @ref="grid" ServerData="(new Func<GridState<Book>, Task<GridData<Book>>>(ServerReload))" Filterable="true">
+    <Columns>
+        <PropertyColumn Property="x => x!.Id" Title="Id" />
+        <PropertyColumn Property="x => x!.Name" Title="Name" />
+        <PropertyColumn Property="x => x!.PublishDate" Title="PublishDate" />
+        <PropertyColumn Property="x => x!.Price" Title="Price" />
+        <TemplateColumn Title="Author" Sortable="false" Filterable="false">
+            <CellTemplate>
+                @string.Join(", ", context.Item.Authors?.Select(x => x.Name?.ToString() ?? string.Empty) ?? [])
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Category" Sortable="false" Filterable="false">
+            <CellTemplate>
+                @string.Join(", ", context.Item.Categories?.Select(x => x.Name?.ToString() ?? string.Empty) ?? [])
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Style="width: 50px;" StickyRight="true" Sortable="false" Filterable="false">
+            <CellTemplate>
+                <MudStack Row="true">
+                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="@Size.Small" Title="Edit" OnClick="@(e => OnEdit(context.Item!))" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="@Size.Small" Title="Delete" OnClick="@(e => OnDelete(context.Item!))" />
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="Book" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<Book>? grid;
+    private string? _searchString;
+    private PropertyColumn<Book, string?>? authorColumn;
+    private string? loadError;
+    private Book[] records;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += LocationChanged;
+
+        await LoadDataAsync();
+    }
+
+    void IDisposable.Dispose()
+    {
+        Navigation.LocationChanged -= LocationChanged;
+    }
+
+    private async void LocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        records = null;
+        StateHasChanged();
+
+        await LoadDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            PagedResultDto<Book> res = await AppService.ListBooksAsync("", 0, null);
+            records = res.Items.ToArray();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task<GridData<Book>> ServerReload(GridState<Book> state)
+    {
+        var top = state.PageSize;
+        var skip = state.Page * state.PageSize;
+        string? orderby = "";
+        var RecordCount = 0;
+
+        if (state.SortDefinitions.Any())
+        {
+            var firstSortDefinition = state.SortDefinitions.First();
+            var direction = firstSortDefinition.Descending;
+            if (direction)
+                orderby = firstSortDefinition.SortBy + " desc";
+            else
+                orderby = firstSortDefinition.SortBy;
+        }
+
+        try
+        {
+            PagedResultDto<Book> res = await AppService.ListBooksAsync(orderby, skip, top);
+
+            records = res.Items.ToArray();
+            RecordCount = (int)res.TotalCount;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        return new() { TotalItems = RecordCount, Items = records?.ToList() ?? Enumerable.Empty<Book>() };
+    }
+
+    private string GetAbsoluteUri(string uri)
+    {
+        if (!uri.StartsWith("/"))
+        {
+            return uri;
+        }
+
+        var baseUri = HttpClient.BaseAddress;
+
+        if (baseUri == null)
+        {
+            throw new Exception("Unable to determine base address");
+        }
+
+        Uri absolute = new(baseUri, uri);
+
+        return absolute.ToString();
+    }
+
+    private async void OnAdd()
+    {
+        DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
+
+        var result = await DialogService.Show<AddBook>("Add MyBooks Sample", dialogOptions).Result;
+
+        if (!result.Canceled)
+        {
+            await (grid?.ReloadServerData() ?? Task.CompletedTask);
+        }
+    }
+
+    private async void OnEdit(Book record)
+    {
+        DialogParameters<UpdateBook> dialogParams = new() { { x => x.Id, record.Id!.Value } };
+        DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
+
+        var result = await DialogService.Show<UpdateBook>("Update MyBooks Sample", dialogParams, dialogOptions).Result;
+
+        if (!result.Canceled)
+        {
+            await (grid?.ReloadServerData() ?? Task.CompletedTask);
+        }
+    }
+
+    private async void OnDelete(Book record)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Warning",
+            "Are you sure you want to delete this record?",
+            "Delete",
+            "Cancel");
+
+        if (result.GetValueOrDefault(false))
+        {
+            try
+            {
+                await AppService.DeleteBookAsync(record.Id!.Value);
+                await (grid?.ReloadServerData() ?? Task.CompletedTask);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+}

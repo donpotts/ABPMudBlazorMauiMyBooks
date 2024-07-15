@@ -1,0 +1,135 @@
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject HttpClient HttpClient
+
+@if (record == null)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">Update MyBooks Sample</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudText>Loading...</MudText>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="OnCancel">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Disabled="true">Update</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@record" OnValidSubmit="@OnSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog>
+            <TitleContent>
+                <MudText Typo="Typo.h6">Update MyBooks Sample</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudNumericField @bind-Value="record.Id" For="@(() => record.Id)" Label="Id" ReadOnly="true" />
+                <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
+                <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.PublishDate" For="@(() => record.PublishDate)" Label="PublishDate" />
+                <MudNumericField @bind-Value="record.Price" For="@(() => record.Price)" Label="Price" />
+                <MudSelect T="long?" Label="Author" MultiSelection="true" @bind-SelectedValues="authorValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => authorArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var author in authorArray ?? Enumerable.Empty<Author>())
+                    {
+                        <MudSelectItem T="long?" Value="@author.Id">@author.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="long?" Label="Category" MultiSelection="true" @bind-SelectedValues="categoryValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => categoryArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var category in categoryArray ?? Enumerable.Empty<Category>())
+                    {
+                        <MudSelectItem T="long?" Value="@category.Id">@category.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="OnCancel">Cancel</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary">Update</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    [CascadingParameter]
+    MudDialogInstance? MudDialog { get; set; }
+
+    private Author[]? authorArray;
+    private IEnumerable<long?>? authorValues;
+    private Category[]? categoryArray;
+    private IEnumerable<long?>? categoryValues;
+    private Book? record;
+
+    private string GetAbsoluteUri(string uri)
+    {
+        if (!uri.StartsWith("/"))
+        {
+            return uri;
+        }
+
+        var baseUri = HttpClient.BaseAddress;
+
+        if (baseUri == null)
+        {
+            throw new Exception("Unable to determine base address");
+        }
+
+        Uri absolute = new(baseUri, uri);
+
+        return absolute.ToString();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            PagedResultDto<Author> authorList = await AppService.ListAuthorsAsync("Name asc", 0, null);
+            authorArray = authorList.Items.ToArray();
+
+            PagedResultDto<Category> categoryList = await AppService.ListCategoriesAsync("Name asc", 0, null);
+            categoryArray = categoryList.Items.ToArray();
+
+            record = await AppService.GetBookByIdAsync(Id);
+            authorValues = record?.Authors?.Select(x => x.Id).ToHashSet() ?? [];
+            categoryValues = record?.Categories?.Select(x => x.Id).ToHashSet() ?? [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog?.Cancel();
+    }
+
+    private async void OnSubmit()
+    {
+        if (record == null)
+        {
+            return;
+        }
+
+        try
+        {
+            record.Authors = authorValues?.Select(x => new Author { Id = x }).ToList();
+            record.Categories = categoryValues?.Select(x => new Category { Id = x }).ToList();
+
+            record.AuthorIds = authorValues?.ToList();
+            record.CategoryIds = categoryValues?.ToList();
+
+            await AppService.UpdateBookAsync(Id, record);
+            MudDialog?.Close();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

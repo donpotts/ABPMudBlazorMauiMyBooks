@@ -1,0 +1,34 @@
+@page
+@using MyBooks.Localization
+@using MyBooks.Permissions
+@using MyBooks.Web.Pages.Categories
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@model IndexModel
+@inject IStringLocalizer<MyBooksResource> L
+@inject IAuthorizationService AuthorizationService
+@section scripts
+{
+    <abp-script src="/Pages/Categories/Index.js" />
+}
+<abp-card>
+    <abp-card-header>
+        <abp-row>
+            <abp-column size-md="_6">
+                <abp-card-title>@L["Menu:Categories"]</abp-card-title>
+            </abp-column>
+            <abp-column size-md="_6" class="text-end">
+                 @if (await AuthorizationService.IsGrantedAsync(MyBooksPermissions.Categories.Create))
+                {
+                    <abp-button id="NewCategoryButton"
+                                text="@L["NewCategory"].Value"
+                                icon="plus"
+                                button-type="Primary"/>
+                }
+            </abp-column>
+        </abp-row>
+    </abp-card-header>
+    <abp-card-body>
+        <abp-table striped-rows="true" id="CategoriesTable"></abp-table>
+    </abp-card-body>
+</abp-card>
