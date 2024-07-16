@@ -23,7 +23,7 @@
         <PropertyColumn Property="x => x!.Id" Title="Id" />
         <PropertyColumn Property="x => x!.Name" Title="Name" />
         <PropertyColumn Property="x => x!.PublishDate" Title="PublishDate" />
-        <PropertyColumn Property="x => x!.Price" Title="Price" />
+        <PropertyColumn Property="x => x!.Price" Format="C" Title="Price" />
         <TemplateColumn Title="Author" Sortable="false" Filterable="false">
             <CellTemplate>
                 @string.Join(", ", context.Item.Authors?.Select(x => x.Name?.ToString() ?? string.Empty) ?? [])
