@@ -10,7 +10,7 @@
         </TitleContent>
         <DialogContent>
             <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
-            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.PublishDate" For="@(() => record.PublishDate)" Label="PublishDate" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.PublishDate" For="@(() => record.PublishDate)" Label="Publish Date" />
             <MudNumericField @bind-Value="record.Price" For="@(() => record.Price)" Label="Price" />
             <MudSelect T="long?" Label="Author" MultiSelection="true" @bind-SelectedValues="authorValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => authorArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
                 @foreach (var author in authorArray ?? Enumerable.Empty<Author>())

@@ -10,8 +10,8 @@
         </TitleContent>
         <DialogContent>
             <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
-            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.BirthDate" For="@(() => record.BirthDate)" Label="BirthDate" />
-            <MudTextField @bind-Value="record.ShortBio" For="@(() => record.ShortBio)" Label="ShortBio" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.BirthDate" For="@(() => record.BirthDate)" Label="Birth Date" />
+            <MudTextField @bind-Value="record.ShortBio" For="@(() => record.ShortBio)" Label="Short Bio" />
         </DialogContent>
         <DialogActions>
             <MudButton OnClick="OnCancel">Cancel</MudButton>
