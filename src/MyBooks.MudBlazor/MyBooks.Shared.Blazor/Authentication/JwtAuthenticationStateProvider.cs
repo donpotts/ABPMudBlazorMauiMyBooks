@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using MyBooks.Shared.Models;
+using MyBooks.Shared.Blazor.Services;
 
 namespace MyBooks.Shared.Blazor.Authentication;
 
@@ -16,14 +17,23 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
     private ClaimsPrincipal currentUser = anonymousUser;
 
     private readonly HttpClient httpClient;
+    private readonly IStorageService storageService;
 
-    public JwtAuthenticationStateProvider(HttpClient httpClient)
+    public JwtAuthenticationStateProvider(HttpClient httpClient, IStorageService storageService)
     {
         this.httpClient = httpClient;
+        this.storageService = storageService;
     }
 
-    public override Task<AuthenticationState> GetAuthenticationStateAsync()
-        => Task.FromResult(new AuthenticationState(currentUser));
+    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
+        var token = await storageService.GetAsync<string>("accessToken");
+        if (token != null)
+        {
+            await SetClaims(token);
+        }
+        return new AuthenticationState(currentUser);
+    }
 
     public async Task LoginAsync(LoginModel loginModel)
     {
@@ -43,7 +53,7 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         var requestContent = new FormUrlEncodedContent(RequestBody);
 
         HttpResponseMessage response = await httpClient.PostAsync("/connect/token", requestContent);
-        
+
         if (!response.IsSuccessStatusCode)
         {
             NotifyAuthenticationStateChanged(
@@ -78,6 +88,13 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
             throw new Exception("The login attempt failed.");
         }
 
+        await SetClaims(token);
+
+        NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(currentUser)));
+    }
+
+    public async Task SetClaims(string token)
+    {
         JwtSecurityToken jwt = new(token);
 
         Claim? expiryClaim = jwt.Claims
@@ -87,7 +104,7 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         {
             NotifyAuthenticationStateChanged(
                 Task.FromResult(new AuthenticationState(currentUser)));
-            
+
             throw new Exception("The login attempt failed.");
         }
 
@@ -132,11 +149,14 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
         Token = token;
         currentUser = new ClaimsPrincipal(loggedInUserIdentity);
-        NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(currentUser)));
+        
+        //Set token for reuse
+        await storageService.SetAsync("accessToken", token);
     }
 
     public void Logout()
     {
+        storageService.RemoveAsync("accessToken");
         Token = null;
         currentUser = anonymousUser;
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(currentUser)));
